@@ -1,4 +1,4 @@
-enum XErrors {
+enum Errors {
     timeQueryError,
     timeParsingError,
     sunriseQueryError,
@@ -9,6 +9,22 @@ struct Colour {
     int r;
     int g;
     int b;
+};
+
+struct ComplicationColours {
+    struct Colour colours[24];
+};
+
+struct SunriseTimes {
+    struct tm sunriseTm;
+    struct tm sunsetTm;
+    struct tm solarNoonTm;
+    struct tm civilTwilightBeginTm;
+    struct tm civilTwilightEndTm;
+    struct tm nauticalTwilightBeginTm;
+    struct tm nauticalTwilightEndTm;
+    struct tm astronomicalTwilightBeginTm;
+    struct tm astronomicalTwilightEndTm;
 };
 
 #include <time.h>
@@ -23,32 +39,17 @@ struct Colour {
 const char* ssid = "75-the-meadows";
 const char* password = "harrylikesfoxes";
 struct Colour nightColour = {2, 0, 5};
-struct Colour astronomicalTwilightColour = {3, 0, 7};
-struct Colour nauticalTwilightColour = {4, 0, 10};
-struct Colour civilTwilightColour = {5, 0, 13};
-struct Colour dayColour = {100, 165, 232};
-struct Colour sunriseColour = {50, 5, 13};
-struct Colour sunsetColour = {50, 15, 13};
+struct Colour astronomicalTwilightColour = {5, 0, 10};
+struct Colour nauticalTwilightColour = {8, 0, 15};
+struct Colour civilTwilightColour = {11, 0, 20};
+struct Colour dayColour = {80, 135, 232};
+struct Colour sunriseColour = {60, 5, 8};
+struct Colour sunsetColour = {60, 15, 8};
 #define PIN 26
 
 // When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.
 // Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(24, PIN, NEO_GRB + NEO_KHZ800);
-
-void setup()
-{
-    Serial.begin(9600);
-    pixels.begin();
-    WiFi.begin(ssid, password);
-    Serial.println("Connecting");
-    while(WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-    }
-    Serial.println("");
-    Serial.print("Connected to WiFi network with IP Address: ");
-    Serial.println(WiFi.localIP());
-}
 
 void setPixel(int pixelID, int sequence) {
     switch ((sequence / 256) % 3) {
@@ -64,8 +65,40 @@ void setPixel(int pixelID, int sequence) {
     }
 }
 
-void errorCondition(enum XErrors errorCode) {
-    sleep(3600*1000);
+void printTM(struct tm tm) {
+    Serial.print(tm.tm_hour);
+    Serial.print(":");
+    Serial.print(tm.tm_min);
+    Serial.print(":");
+    Serial.print(tm.tm_sec);
+}
+
+void printSunriseTime(char *label, struct tm tm) {
+    Serial.print(label);
+    Serial.print(", ");
+    printTM(tm);
+    Serial.println();
+}
+
+void printSunriseTimes(struct SunriseTimes times) {
+    printSunriseTime("sunriseTm", times.sunriseTm);
+    printSunriseTime("sunsetTm", times.sunsetTm);
+    printSunriseTime("solarNoonTm", times.solarNoonTm);
+    printSunriseTime("civilTwilightBeginTm", times.civilTwilightBeginTm);
+    printSunriseTime("civilTwilightEndTm", times.civilTwilightEndTm);
+    printSunriseTime("nauticalTwilightBeginTm", times.nauticalTwilightBeginTm);
+    printSunriseTime("nauticalTwilightEndTm", times.nauticalTwilightEndTm);
+    printSunriseTime("astronomicalTwilightBeginTm", times.astronomicalTwilightBeginTm);
+    printSunriseTime("astronomicalTwilightEndTm", times.astronomicalTwilightEndTm);
+}
+
+void errorCondition(enum Errors errorCode) {
+    long totalWaitTimeMS = 1L * 60L * 1000L;
+    long cycleDelay = 40L;
+    long numberOfIterations = totalWaitTimeMS / cycleDelay / 256;
+    for (long i=0; i<numberOfIterations; i++) {
+        rainbowCycle(cycleDelay);
+    }
 }
 
 void parseSunriseDate(char *datestr, int utcOffsetMinutes, struct tm *tm) {
@@ -74,10 +107,6 @@ void parseSunriseDate(char *datestr, int utcOffsetMinutes, struct tm *tm) {
     memcpy(tm, gmtime(&time), sizeof(struct tm));
 }
 
-struct ComplicationColours {
-    struct Colour colours[24];
-};
-
 int tmMinutes(struct tm time) {
     int tmMinutes = time.tm_hour * 60 + time.tm_min;
     return tmMinutes;
@@ -85,6 +114,126 @@ int tmMinutes(struct tm time) {
 
 int abs(int input) {
     return input < 0 ? -input : input;
+}
+
+int min(int one, int two) {
+    return one < two ? one : two;
+}
+
+///////////////////////////////////////////////
+// Copied from Adafruit Neopixel strand example
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if(WheelPos < 85) {
+    return pixels.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    return pixels.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return pixels.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+// Slightly different, this makes the rainbow equally distributed throughout
+void rainbowCycle(uint8_t wait) {
+  uint16_t i, j;
+
+  for(j=0; j<256; j++) {
+    for(i=0; i< pixels.numPixels(); i++) {
+      pixels.setPixelColor(i, Wheel(((i * 256 / pixels.numPixels()) + j) & 255));
+    }
+    pixels.show();
+    delay(wait);
+  }
+}
+
+///////////////////////////////////////////////
+
+struct ComplicationColours calculateComplicationColours(struct tm currentTime, struct SunriseTimes sunriseTimes) {
+    bool showingSunrise = currentTime.tm_hour < 12;
+
+    struct ComplicationColours complicationColours = {0};
+    for (int i=0; i<24; i++) {
+        int minutes = i*30 + (showingSunrise ? 0 : (12*60));
+        Serial.print("Index: ");
+        Serial.print(i);
+        Serial.print(", minutes: ");
+        Serial.print(minutes);
+        Serial.print(", showingSunrise: ");
+        Serial.print(showingSunrise ? "true" : "false");
+
+        struct Colour colour;
+        if (minutes < tmMinutes(sunriseTimes.astronomicalTwilightBeginTm)) {
+            Serial.print(", picking nightColour");
+            colour = nightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.nauticalTwilightBeginTm)) {
+            Serial.print(", picking astronomicalTwilightColour");
+            colour = astronomicalTwilightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.civilTwilightBeginTm)) {
+            Serial.print(", picking nauticalTwilightColour");
+            colour = nauticalTwilightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.sunriseTm)) {
+            Serial.print(", picking civilTwilightColour");
+            colour = civilTwilightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.sunsetTm)) {
+            Serial.print(", picking dayColour");
+            colour = dayColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.civilTwilightEndTm)) {
+            Serial.print(", picking civilTwilightColour");
+            colour = civilTwilightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.nauticalTwilightEndTm)) {
+            Serial.print(", picking nauticalTwilightColour");
+            colour = nauticalTwilightColour;
+        }
+        else if (minutes < tmMinutes(sunriseTimes.astronomicalTwilightEndTm)) {
+            Serial.print(", picking astronomicalTwilightColour");
+            colour = astronomicalTwilightColour;
+        }
+        else {
+            Serial.print(", picking nightColour");
+            colour = nightColour;
+        }
+
+        // Exception is sunset and sunrise
+        if (showingSunrise) {
+            if (abs(tmMinutes(sunriseTimes.sunriseTm) - minutes) <= 15) {
+                Serial.print(", overriding with sunriseColour");
+                colour = sunriseColour;
+            }
+        }
+        else {
+            if (abs(tmMinutes(sunriseTimes.sunsetTm) - minutes) <= 15) {
+                Serial.print(", overriding with sunsetColour");
+                colour = sunsetColour;
+            }
+        }
+        Serial.println();
+        complicationColours.colours[i] = colour;
+    }
+
+    return complicationColours;
+}
+
+void setup()
+{
+    Serial.begin(9600);
+    pixels.begin();
+    WiFi.begin(ssid, password);
+    Serial.println("Connecting");
+    while(WiFi.status() != WL_CONNECTED) {
+      rainbowCycle(20);
+      Serial.print(".");
+    }
+    Serial.println("");
+    Serial.print("Connected to WiFi network with IP Address: ");
+    Serial.println(WiFi.localIP());
 }
 
 void loop()
@@ -98,6 +247,7 @@ void loop()
         Serial.print("Time query failed with: ");
         Serial.println(httpResponseCode);
         errorCondition(timeQueryError);
+        return;
     }
 
     StaticJsonDocument<1024> jsonDocument;
@@ -134,14 +284,14 @@ void loop()
     http.end();
 
     HTTPClient http2;
-    Serial.println("https://api.sunrise-sunset.org/json?lat="CAPITAL_LATITUDE"&lng="CAPITAL_LATITUDE"&date=today&formatted=0");
-    http2.begin("https://api.sunrise-sunset.org/json?lat="CAPITAL_LATITUDE"&lng="CAPITAL_LATITUDE"&date=today&formatted=0");
+    http2.begin("https://api.sunrise-sunset.org/json?lat="CAPITAL_LATITUDE"&lng="CAPITAL_LONGNITUDE"&date=today&formatted=0");
     httpResponseCode = http2.GET();
 
     if (httpResponseCode != 200) {
         Serial.print("Sunrise query failed with: ");
         Serial.println(httpResponseCode);
         errorCondition(sunriseQueryError);
+        return;
     }
 
     deserializationError = deserializeJson(jsonDocument, http2.getString().c_str());
@@ -155,130 +305,56 @@ void loop()
     String sunrise = String((const char *)jsonDocument["results"]["sunrise"]);
     Serial.println(sunrise);
 
-    struct tm sunriseTm = {0};
-    struct tm sunsetTm = {0};
-    struct tm solarNoonTm = {0};
-    struct tm civilTwilightBeginTm = {0};
-    struct tm civilTwilightEndTm = {0};
-    struct tm nauticalTwilightBeginTm = {0};
-    struct tm nauticalTwilightEndTm = {0};
-    struct tm astronomicalTwilightBeginTm = {0};
-    struct tm astronomicalTwilightEndTm = {0};
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["sunrise"], utcOffsetMins, &sunriseTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["sunset"], utcOffsetMins, &sunsetTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["solar_noon"], utcOffsetMins, &solarNoonTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["civil_twilight_begin"], utcOffsetMins, &civilTwilightBeginTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["civil_twilight_end"], utcOffsetMins, &civilTwilightEndTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["nautical_twilight_begin"], utcOffsetMins, &nauticalTwilightBeginTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["nautical_twilight_end"], utcOffsetMins, &nauticalTwilightEndTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["astronomical_twilight_begin"], utcOffsetMins, &astronomicalTwilightBeginTm);
-    parseSunriseDate((char *)(const char *)jsonDocument["results"]["astronomical_twilight_end"], utcOffsetMins, &astronomicalTwilightEndTm);
-    Serial.print("Hour: ");
-    Serial.print(nauticalTwilightBeginTm.tm_hour);
-    Serial.print(", minute: ");
-    Serial.print(nauticalTwilightBeginTm.tm_min);
-    Serial.print(", second: ");
-    Serial.print(nauticalTwilightBeginTm.tm_sec);
-    Serial.println();
+    struct SunriseTimes sunriseTimes = {};
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["sunrise"], utcOffsetMins, &sunriseTimes.sunriseTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["sunset"], utcOffsetMins, &sunriseTimes.sunsetTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["solar_noon"], utcOffsetMins, &sunriseTimes.solarNoonTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["civil_twilight_begin"], utcOffsetMins, &sunriseTimes.civilTwilightBeginTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["civil_twilight_end"], utcOffsetMins, &sunriseTimes.civilTwilightEndTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["nautical_twilight_begin"], utcOffsetMins, &sunriseTimes.nauticalTwilightBeginTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["nautical_twilight_end"], utcOffsetMins, &sunriseTimes.nauticalTwilightEndTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["astronomical_twilight_begin"], utcOffsetMins, &sunriseTimes.astronomicalTwilightBeginTm);
+    parseSunriseDate((char *)(const char *)jsonDocument["results"]["astronomical_twilight_end"], utcOffsetMins, &sunriseTimes.astronomicalTwilightEndTm);
+    printSunriseTimes(sunriseTimes);
 
-    bool showingSunrise = tm.tm_hour < 12;
+    errorCondition(sunriseParsingError);
 
-    struct ComplicationColours complicationColours = {0};
-    for (int i=0; i<24; i++) {
-        int minutes = i*30 + (showingSunrise ? 0 : (12*60));
-        Serial.print("Index: ");
-        Serial.print(i);
-        Serial.print(", minutes: ");
-        Serial.print(minutes);
-        Serial.print(", showingSunrise: ");
-        Serial.print(showingSunrise ? "true" : "false");
+    struct ComplicationColours complicationColours = calculateComplicationColours(tm, sunriseTimes);
 
-        struct Colour colour;
-        if (minutes < tmMinutes(astronomicalTwilightBeginTm)) {
-            Serial.print(", picking nightColour");
-            colour = nightColour;
-        }
-        else if (minutes < tmMinutes(nauticalTwilightBeginTm)) {
-            Serial.print(", picking astronomicalTwilightColour");
-            colour = astronomicalTwilightColour;
-        }
-        else if (minutes < tmMinutes(civilTwilightBeginTm)) {
-            Serial.print(", picking nauticalTwilightColour");
-            colour = nauticalTwilightColour;
-        }
-        else if (minutes < tmMinutes(sunriseTm)) {
-            Serial.print(", picking civilTwilightColour");
-            colour = civilTwilightColour;
-        }
-        else if (minutes < tmMinutes(sunsetTm)) {
-            Serial.print(", picking dayColour");
-            colour = dayColour;
-        }
-        else if (minutes < tmMinutes(civilTwilightEndTm)) {
-            Serial.print(", picking civilTwilightColour");
-            colour = civilTwilightColour;
-        }
-        else if (minutes < tmMinutes(nauticalTwilightEndTm)) {
-            Serial.print(", picking nauticalTwilightColour");
-            colour = nauticalTwilightColour;
-        }
-        else if (minutes < tmMinutes(astronomicalTwilightEndTm)) {
-            Serial.print(", picking astronomicalTwilightColour");
-            colour = astronomicalTwilightColour;
-        }
-        else {
-            Serial.print(", picking nightColour");
-            colour = nightColour;
-        }
-
-        // Exception is sunset and sunrise
-        if (showingSunrise) {
-            if (abs(tmMinutes(sunriseTm) - minutes) <= 15) {
-                Serial.print(", overriding with sunriseColour");
-                colour = sunriseColour;
-            }
-        }
-        else {
-            if (abs(tmMinutes(sunsetTm) - minutes) <= 15) {
-                Serial.print(", overriding with sunsetColour");
-                colour = sunsetColour;
-            }
-        }
-        Serial.println();
-        complicationColours.colours[i] = colour;
-    }
+    //for (int i=0; i<24; i++) {
+    //    Serial.print("i=");
+    //    Serial.print(i);
+    //    Serial.print(", r=");
+    //    Serial.print(complicationColours.colours[i].r);
+    //    Serial.print(", g=");
+    //    Serial.print(complicationColours.colours[i].g);
+    //    Serial.print(", b=");
+    //    Serial.print(complicationColours.colours[i].b);
+    //    Serial.println();
+    //}
 
     int pixelOffset = 0;
-    for (int i=0; i<24; i++) {
-        Serial.print("i=");
-        Serial.print(i);
-        Serial.print(", r=");
-        Serial.print(complicationColours.colours[i].r);
-        Serial.print(", g=");
-        Serial.print(complicationColours.colours[i].g);
-        Serial.print(", b=");
-        Serial.print(complicationColours.colours[i].b);
-        Serial.println();
-    }
-    while(true) {
+    do {
         for (int i=0; i<24; i++) {
             pixels.setPixelColor((i + pixelOffset) % 24, pixels.Color(complicationColours.colours[i].r, complicationColours.colours[i].g, complicationColours.colours[i].b));
         }
         pixels.show();
         pixelOffset++;
         delay(200);
-    }
-/*
-    for (int i=0; i<256*256; i++) {
-        for (int j=0; j<256*256; j++) {
-            setPixel(j, i+16*j);
-        }
-        pixels.show();
-        delay(10);
-        if (i%256==0) {
-            Serial.println("Completed one colour");
-        }
-    }
-    Serial.println("Completed the whole loop");
-*/
+    } while(true);
+
+    //int currentHour = 17;
+    //int currentMin = 36;
+    //tm.tm_hour = tm.tm_hour - currentHour + 11;
+    //tm.tm_min = tm.tm_min - currentMin + 55;
+    //if (tm.tm_min > 60) {
+    //    tm.tm_min -= 60;
+    //    tm.tm_hour++;
+    //}
+
+    int switchoverSeconds = ((tm.tm_hour >= 12 ? 24 : 12) - tm.tm_hour) * 3600 - tm.tm_min * 60 - tm.tm_sec;
+    int waitTime = min(switchoverSeconds/2, 3600);
+    Serial.print("Sleeping for: ");
+    Serial.println(waitTime);
+    delay(1000UL * waitTime);
 }
