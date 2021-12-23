@@ -33,9 +33,16 @@ struct SunriseTimes {
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-#define CAPITAL "Warsaw"
+#if 0
+#define CAPITAL "Europe/Warsaw"
 #define CAPITAL_LATITUDE "52.237049"
 #define CAPITAL_LONGNITUDE "21.017532"
+#else
+#define CAPITAL "Europe/London"
+#define CAPITAL_LATITUDE "51.5072"
+#define CAPITAL_LONGNITUDE "-0.1276"
+#endif
+
 const char* ssid = "75-the-meadows";
 const char* password = "harrylikesfoxes";
 struct Colour nightColour = {2, 0, 5};
@@ -44,7 +51,7 @@ struct Colour nauticalTwilightColour = {8, 0, 15};
 struct Colour civilTwilightColour = {11, 0, 20};
 struct Colour dayColour = {80, 135, 232};
 struct Colour sunriseColour = {60, 5, 8};
-struct Colour sunsetColour = {60, 15, 8};
+struct Colour sunsetColour = {60, 15, 4};
 #define PIN 26
 
 // When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.
@@ -236,10 +243,14 @@ void setup()
     Serial.println(WiFi.localIP());
 }
 
+int ledIndex(int dialIndex) {
+    return (24 + 13 -dialIndex) % 24;
+}
+
 void loop()
 {
     HTTPClient http;
-    http.begin("http://worldtimeapi.org/api/timezone/Europe/"CAPITAL);
+    http.begin("http://worldtimeapi.org/api/timezone/"CAPITAL);
 
     int httpResponseCode = http.GET();
 
@@ -317,8 +328,6 @@ void loop()
     parseSunriseDate((char *)(const char *)jsonDocument["results"]["astronomical_twilight_end"], utcOffsetMins, &sunriseTimes.astronomicalTwilightEndTm);
     printSunriseTimes(sunriseTimes);
 
-    errorCondition(sunriseParsingError);
-
     struct ComplicationColours complicationColours = calculateComplicationColours(tm, sunriseTimes);
 
     //for (int i=0; i<24; i++) {
@@ -333,15 +342,11 @@ void loop()
     //    Serial.println();
     //}
 
-    int pixelOffset = 0;
-    do {
-        for (int i=0; i<24; i++) {
-            pixels.setPixelColor((i + pixelOffset) % 24, pixels.Color(complicationColours.colours[i].r, complicationColours.colours[i].g, complicationColours.colours[i].b));
-        }
-        pixels.show();
-        pixelOffset++;
-        delay(200);
-    } while(true);
+    for (int i=0; i<24; i++) {
+        pixels.setPixelColor(ledIndex(i), pixels.Color(complicationColours.colours[i].r, complicationColours.colours[i].g, complicationColours.colours[i].b));
+    }
+    pixels.show();
+    delay(200);
 
     //int currentHour = 17;
     //int currentMin = 36;
