@@ -46,9 +46,9 @@ struct SunriseTimes {
 const char* ssid = "75-the-meadows";
 const char* password = "harrylikesfoxes";
 struct Colour nightColour = {1, 0, 2};
-struct Colour astronomicalTwilightColour = {5, 0, 10};
-struct Colour nauticalTwilightColour = {8, 0, 15};
-struct Colour civilTwilightColour = {11, 0, 20};
+struct Colour astronomicalTwilightColour = {2, 0, 4};
+struct Colour nauticalTwilightColour = {3, 0, 6};
+struct Colour civilTwilightColour = {4, 0, 8};
 struct Colour dayColour = {80, 135, 232};
 struct Colour sunriseColour = {60, 5, 8};
 struct Colour sunsetColour = {60, 15, 4};
