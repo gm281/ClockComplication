@@ -2,7 +2,8 @@ enum Errors {
     timeQueryError,
     timeParsingError,
     sunriseQueryError,
-    sunriseParsingError
+    sunriseParsingError,
+    sleepEnableError
 };
 
 struct Colour {
@@ -57,6 +58,8 @@ struct Colour sunsetColour = {60, 15, 4};
 // When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.
 // Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(24, PIN, NEO_GRB + NEO_KHZ800);
+
+#define uS_TO_S_FACTOR 1000000ULL  /* Conversion factor for micro seconds to seconds */
 
 void setPixel(int pixelID, int sequence) {
     switch ((sequence / 256) % 3) {
@@ -361,5 +364,23 @@ void loop()
     int waitTime = min(switchoverSeconds/2, 3600);
     Serial.print("Sleeping for: ");
     Serial.println(waitTime);
-    delay(1000UL * waitTime);
+
+    if (tm.tm_hour >= 2 && tm.tm_hour < 4) {
+        Serial.println("Invoking deep sleep");
+        for (int i=0; i<24; i++) {
+            // Switch LEDs off completely.
+            pixels.setPixelColor(ledIndex(i), pixels.Color(0, 0, 0));
+        }
+        pixels.show();
+        esp_err_t sleepEnableRet = esp_sleep_enable_timer_wakeup(((uint64_t)waitTime) * uS_TO_S_FACTOR);
+        if (sleepEnableRet != ESP_OK) {
+            Serial.print("esp_sleep_enable_timer_wakeup failed with: ");
+            Serial.println(sleepEnableRet);
+            errorCondition(sleepEnableError);
+            return;
+        }
+        esp_deep_sleep_start();
+    } else {
+        delay(1000UL * waitTime);
+    }
 }
